@@ -69,12 +69,23 @@ class DirectVoxGO(torch.nn.Module):
         self.k0_config = k0_config
         self.rgbnet_full_implicit = rgbnet_full_implicit
         if rgbnet_dim <= 0:
-            # color voxel grid  (coarse stage)
-            self.k0_dim = 3
-            self.k0 = grid.create_grid(
-                k0_type, channels=self.k0_dim, world_size=self.world_size,
-                xyz_min=self.xyz_min, xyz_max=self.xyz_max,
-                config=self.k0_config)
+            # color voxel grid (coarse stage) if rgbnet_depth == 1 else spherical harmonics (fine stage) 
+            self.k0_dim = 3 * rgbnet_depth * rgbnet_depth
+            self.k0 = torch.nn.Parameter(torch.zeros([1, self.k0_dim, *self.world_size]))
+            self.sh_basis_order = rgbnet_depth
+            self.register_buffer('c0', torch.FloatTensor([0.28209479177387814]).tile(3))
+            if self.sh_basis_order > 1:
+                self.register_buffer('c1', torch.FloatTensor([[-0.4886025119029199,
+                                                              -0.4886025119029199,
+                                                              0.4886025119029199]]).tile(3, 1))
+            if self.sh_basis_order > 2:
+                self.register_buffer('c2', torch.FloatTensor([[1.0925484305920792,
+                                                              -1.0925484305920792,
+                                                              0.31539156525252005,
+                                                              -1.0925484305920792,
+                                                              0.5462742152960396]]).tile(3, 1))
+            if self.sh_basis_order > 3:
+                raise NotImplementedError
             self.rgbnet = None
         else:
             # feature voxel grid + shallow MLP  (fine stage)
@@ -343,8 +354,15 @@ class DirectVoxGO(torch.nn.Module):
             k0 = self.k0(ray_pts)
 
         if self.rgbnet is None:
-            # no view-depend effect
-            rgb = torch.sigmoid(k0)
+            # no view-depend effect if self.sh_basis_order == 1
+            rgb = self.c0 * k0[..., :3]
+            k0_shape = k0.shape[:-1]
+            if self.sh_basis_order > 1:
+                rgb[mask] = rgb[mask] + torch.sum(viewdirs.unsqueeze(-2).tile(3, 1) * self.c1 * k0[..., 3:12].reshape(*k0_shape, 3, -1), -1)
+            if self.sh_basis_order > 2:
+                vx, vy, vz = viewdirs.unbind(-1)
+                viewbasis = torch.stack([0, 0, 1, 0, vx * vx], -1) + torch.stack([vx, vy, -3 * vz, vx, -vy], -1) * torch.stack([vy, vz, vz, vz, vy], -1)
+                rgb = rgb[mask] + torch.sum(viewbasis.unsqueeze(-2).tile(3, 1) * self.c2 * k0[..., 12:].reshape(*k0_shape, 3, -1), -1)
         else:
             # view-dependent color emission
             if self.rgbnet_direct:

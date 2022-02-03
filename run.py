@@ -620,7 +620,7 @@ if __name__=='__main__':
             ckpt_path = os.path.join(cfg.basedir, cfg.expname, 'coarse_last.tar')
             model = utils.load_model(dvgo.DirectVoxGO, ckpt_path).to(device)
             alpha = model.activate_density(model.density.get_dense_grid()).squeeze().cpu().numpy()
-            rgb = torch.sigmoid(model.k0.get_dense_grid()).squeeze().permute(1,2,3,0).cpu().numpy()
+            rgb = model.k0.get_dense_grid().squeeze().permute(1,2,3,0).cpu().numpy()
         np.savez_compressed(args.export_coarse_only, alpha=alpha, rgb=rgb)
         print('done')
         sys.exit()

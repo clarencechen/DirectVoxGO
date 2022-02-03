@@ -94,7 +94,7 @@ coarse_model_and_render = dict(
     rgbnet_dim=0,                 # feature voxel grid dim
     rgbnet_full_implicit=False,   # let the colors MLP ignore feature voxel grid
     rgbnet_direct=True,           # set to False to treat the first 3 dim of feature voxel grid as diffuse rgb
-    rgbnet_depth=3,               # depth of the colors MLP (there are rgbnet_depth-1 intermediate features)
+    rgbnet_depth=1,               # depth of the colors MLP (there are rgbnet_depth-1 intermediate features)
     rgbnet_width=128,             # width of the colors MLP
     alpha_init=1e-6,              # set the alpha values everywhere at the begin of training
     fast_color_thres=1e-7,        # threshold of alpha value to skip the fine stage sampled point
@@ -107,7 +107,7 @@ fine_model_and_render = deepcopy(coarse_model_and_render)
 fine_model_and_render.update(dict(
     num_voxels=160**3,
     num_voxels_base=160**3,
-    rgbnet_dim=12,
+    rgbnet_depth=3,
     alpha_init=1e-2,
     fast_color_thres=1e-4,
     maskout_near_cam_vox=False,
